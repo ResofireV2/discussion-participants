@@ -1,0 +1,23 @@
+{
+    "name": "resofire/discussion-participants",
+    "description": "Shows avatars of users who have participated in a discussion.",
+    "type": "flarum-extension",
+    "require": {
+        "flarum/core": "^1.8"
+    },
+    "autoload": {
+        "psr-4": {
+            "Resofire\\DiscussionParticipants\\": "src/"
+        }
+    },
+    "extra": {
+        "flarum-extension": {
+            "title": "Discussion Participants",
+            "icon": {
+                "name": "fas fa-users",
+                "backgroundColor": "#3dd6c8",
+                "color": "#fff"
+            }
+        }
+    }
+}
