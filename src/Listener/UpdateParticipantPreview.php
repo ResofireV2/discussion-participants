@@ -25,11 +25,13 @@ use Illuminate\Database\ConnectionInterface;
  *               already shown by Flarum in the discussion list item.
  *               Guard: only comment-type, non-hidden posts.
  *
- *   Hidden    — Recompute if the author is currently in the preview.
+ *   Hidden    — Always recompute. The hidden post's author may be in the
+ *               overflow rather than the visible strip, so the guard-based
+ *               optimisation would leave the overflow count stale.
  *
- *   Restored  — Recompute if the author is not yet in the preview.
+ *   Restored  — Always recompute. Same reasoning as Hidden in reverse.
  *
- *   Deleted   — Same logic as Hidden: recompute if author was in preview.
+ *   Deleted   — Always recompute. Same reasoning as Hidden.
  *
  * participant_count is owned by Flarum core's DiscussionMetadataUpdater,
  * which keeps it current on live post events. We do NOT touch it in
@@ -141,16 +143,10 @@ class UpdateParticipantPreview
             return;
         }
 
-        // Only recompute if this author is currently in the preview.
-        // Hiding a post by someone not in the preview has no effect on it.
-        $inPreview = $this->db->table('discussion_participant_previews')
-            ->where('discussion_id', (int) $post->discussion_id)
-            ->where('user_id', (int) $post->user_id)
-            ->exists();
-
-        if ($inPreview) {
-            $this->recompute((int) $post->discussion_id);
-        }
+        // Always recompute — the hidden post's author may be in the overflow
+        // rather than the visible strip, but participant_count still needs to
+        // reflect the change regardless of where they appear in the UI.
+        $this->recompute((int) $post->discussion_id);
     }
 
     public function whenRestored(Restored $event): void
@@ -161,36 +157,23 @@ class UpdateParticipantPreview
             return;
         }
 
-        // Only recompute if this author is NOT already in the preview.
-        // Restoring a post by someone already in the preview has no effect.
-        $inPreview = $this->db->table('discussion_participant_previews')
-            ->where('discussion_id', (int) $post->discussion_id)
-            ->where('user_id', (int) $post->user_id)
-            ->exists();
-
-        if (!$inPreview) {
-            $this->recompute((int) $post->discussion_id);
-        }
+        // Always recompute — the restored post's author may have been in the
+        // overflow before being hidden, and needs to be reinstated correctly
+        // regardless of whether they were in the visible strip.
+        $this->recompute((int) $post->discussion_id);
     }
 
     public function whenDeleted(Deleted $event): void
     {
-        // Hard-delete: same logic as Hidden.
-        // Recompute only if this author was in the preview.
         $post = $event->post;
 
         if ($post->type !== 'comment') {
             return;
         }
 
-        $inPreview = $this->db->table('discussion_participant_previews')
-            ->where('discussion_id', (int) $post->discussion_id)
-            ->where('user_id', (int) $post->user_id)
-            ->exists();
-
-        if ($inPreview) {
-            $this->recompute((int) $post->discussion_id);
-        }
+        // Always recompute — same reasoning as whenHidden: the deleted post's
+        // author may be in the overflow rather than the visible strip.
+        $this->recompute((int) $post->discussion_id);
     }
 
     // -------------------------------------------------------------------------
