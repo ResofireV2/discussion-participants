@@ -2,6 +2,7 @@
     "name": "resofire/discussion-participants",
     "description": "Shows avatars of users who have participated in a discussion.",
     "type": "flarum-extension",
+    "license": "MIT",
     "require": {
         "flarum/core": "^1.8"
     },
