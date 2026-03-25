@@ -2,11 +2,6 @@
 
 Shows an inline avatar strip of the first 6 repliers in each discussion on the Flarum discussion list. A "+N more" badge opens a paginated modal listing all participants.
 
-## Requirements
-
-- Flarum 2.0 or later
-- PHP 8.2 or later
-
 ## How it works
 
 ### Avatar strip
@@ -23,11 +18,11 @@ The overflow count (+N more) is derived from `participantCount`, a native Flarum
 
 ### Live updates
 
-When a user posts for the first time in a discussion, their avatar appears in the strip immediately in the UI without a page refresh, provided the strip has fewer than 6 entries. The overflow badge also updates instantly via Flarum's own post-save API response.
+When a user posts for the first time in a discussion, their avatar is appended to the strip immediately in the UI without a page refresh, provided the strip has fewer than 6 entries. The overflow badge also updates instantly via Flarum's own post-save API response.
 
 ### Paginated modal
 
-The "+N more" button opens a modal that hits a dedicated endpoint (`GET /api/discussions/{id}/participants`) returning 10 users per page with minimal attributes (id, username, slug, avatarUrl). No full UserSerializer, no single large payload.
+The "+N more" button opens a modal that hits a dedicated endpoint (`GET /api/discussions/{id}/participants`) returning 20 users per page with minimal attributes (id, username, slug, avatarUrl). No full UserSerializer, no single large payload.
 
 ## Installation
 
@@ -49,21 +44,16 @@ php flarum participants:populate
 
 Alternatively, use the **Recalculate** button in the extension's admin page, which processes discussions in chunks of 2,000 and displays per-chunk timing and a total elapsed time.
 
-## Updating
+## Upgrading from resofire-v2/discussion-participants
 
-```bash
-composer update resofire/discussion-participants
-php flarum migrate
-php flarum cache:clear
-```
+1. Disable the old extension in the admin panel
+2. `composer remove resofire-v2/discussion-participants`
+3. `composer require resofire/discussion-participants`
+4. `php flarum migrate`
+5. `php flarum cache:clear`
+6. Enable the new extension in the admin panel
 
-## Removal
-
-```bash
-composer remove resofire/discussion-participants
-php flarum migrate
-php flarum cache:clear
-```
+Your existing data (`discussion_participant_previews` table and `participant_count` column) is preserved — no recalculation needed.
 
 ## Memory profile
 
@@ -71,4 +61,8 @@ php flarum cache:clear
 |---|---|---|
 | Discussion list (20 discussions) | Up to 2,000 User models | 120 rows, 6 fields each |
 | Participant data per request | ~6 MB | ~50 KB |
-| Modal (300 participants) | 300 models, ~500 KB JSON | 10 models per page, ~2 KB JSON |
+| Modal (300 participants) | 300 models, ~500 KB JSON | 20 models per page, ~4 KB JSON |
+
+## Requirements
+
+- Flarum 1.8 or later

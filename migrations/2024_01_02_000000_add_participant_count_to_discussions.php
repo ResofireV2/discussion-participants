@@ -3,20 +3,25 @@
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Database\Schema\Builder;
 
-// Adds a participant_count column to the discussions table.
+// participant_count on the discussions table.
 //
-// This stores the total number of distinct users who have posted a visible
-// comment in each discussion (excluding the OP). It is kept in sync by
-// UpdateParticipantPreview on every post Posted/Hidden/Restored/Deleted event,
-// and backfilled by the participants:populate console command.
+// This column is owned by Flarum core — it has been present since core's own
+// 2015_02_24_000000_create_discussions_table migration and is read by core's
+// DiscussionPolicy and written by Discussion::refreshParticipantCount().
 //
-// Storing the count on the discussion row means the discussion list page never
-// needs a COUNT(DISTINCT user_id) subquery — it reads a single integer column
-// that is already there.
+// The up() function is a guarded no-op on any standard Flarum install because
+// the column already exists. It is kept only for edge-case environments (e.g.
+// a bare schema constructed without running core migrations in order) where
+// the column might genuinely be absent.
+//
+// The down() function is intentionally a no-op. Dropping participant_count on
+// uninstall would silently break core functionality — rename-permission checks
+// in DiscussionPolicy depend on it. Because the column belongs to core, this
+// extension must never remove it.
 
 return [
     'up' => function (Builder $schema) {
-        if (!$schema->hasColumn('discussions', 'participant_count')) {
+        if (! $schema->hasColumn('discussions', 'participant_count')) {
             $schema->table('discussions', function (Blueprint $table) {
                 // Nullable so existing rows start as NULL until backfilled.
                 // The JS falls back gracefully when the value is absent.
@@ -26,8 +31,7 @@ return [
     },
 
     'down' => function (Builder $schema) {
-        $schema->table('discussions', function (Blueprint $table) {
-            $table->dropColumn('participant_count');
-        });
+        // participant_count is owned by Flarum core. We do not drop it on
+        // uninstall — doing so would break core's DiscussionPolicy checks.
     },
 ];
