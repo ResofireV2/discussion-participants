@@ -1,210 +1,261 @@
 (()=>{var t={n:o=>{var s=o&&o.__esModule?()=>o.default:()=>o;return t.d(s,{a:s}),s},d:(o,s)=>{for(var n in s)t.o(s,n)&&!t.o(o,n)&&Object.defineProperty(o,n,{enumerable:!0,get:s[n]})},o:(t,o)=>Object.prototype.hasOwnProperty.call(t,o),r:t=>{"undefined"!=typeof Symbol&&Symbol.toStringTag&&Object.defineProperty(t,Symbol.toStringTag,{value:"Module"}),Object.defineProperty(t,"__esModule",{value:!0})}},o={};(()=>{"use strict";t.r(o);
 
-// Inheritance helpers — exact pattern from flarum/likes compiled bundle.
-function g(t,o){return g=Object.setPrototypeOf?Object.setPrototypeOf.bind():function(t,o){return t.__proto__=o,t},g(t,o)}
-function _(t,o){t.prototype=Object.create(o.prototype),t.prototype.constructor=t,g(t,o)}
+// ---------------------------------------------------------------------------
+// Imports — reference classes directly, NO .n() wrappers, NO () invocations.
+// .n() returns a getter function, not the class itself. Using it breaks both
+// `extends` and `new`. flarum.reg.get() already returns the class/object.
+// ---------------------------------------------------------------------------
+const app               = flarum.reg.get("core","forum/app");
+const { extend, override } = flarum.reg.get("core","common/extend");
+const extenders         = flarum.reg.get("core","common/extenders");
+const Discussion        = flarum.reg.get("core","common/models/Discussion");
+const Component         = flarum.reg.get("core","common/Component");
+const Modal             = flarum.reg.get("core","common/components/Modal");
+const Button            = flarum.reg.get("core","common/components/Button");
+const LoadingIndicator  = flarum.reg.get("core","common/components/LoadingIndicator");
+const Tooltip           = flarum.reg.get("core","common/components/Tooltip");
+const Avatar            = flarum.reg.get("core","common/components/Avatar");
+const DiscussionListItem  = flarum.reg.get("core","forum/components/DiscussionListItem");
+const DiscussionListState = flarum.reg.get("core","forum/states/DiscussionListState");
+const ReplyComposer       = flarum.reg.get("core","forum/components/ReplyComposer");
 
-// --- Imports (2.x: flarum.reg.get replaces flarum.core.compat) ---
-const _app=flarum.reg.get("core","forum/app");var app=t.n(_app);
-const _ReplyComposer=flarum.reg.get("core","forum/components/ReplyComposer");var ReplyComposer=t.n(_ReplyComposer);
-const _extend=flarum.reg.get("core","common/extend");
-const _extenders=flarum.reg.get("core","common/extenders");var extenders=t.n(_extenders);
-const _Discussion=flarum.reg.get("core","common/models/Discussion");var Discussion=t.n(_Discussion);
-const _Component=flarum.reg.get("core","common/Component");var Component=t.n(_Component);
-const _Modal=flarum.reg.get("core","common/components/Modal");var Modal=t.n(_Modal);
-const _Button=flarum.reg.get("core","common/components/Button");var Button=t.n(_Button);
-const _LoadingIndicator=flarum.reg.get("core","common/components/LoadingIndicator");var LoadingIndicator=t.n(_LoadingIndicator);
-const _Tooltip=flarum.reg.get("core","common/components/Tooltip");var Tooltip=t.n(_Tooltip);
-// 2.x: common/helpers/avatar is gone. Use common/components/Avatar instead.
-// Usage changes from avatar()(user) to m(Avatar(), {user: user}).
-const _Avatar=flarum.reg.get("core","common/components/Avatar");var Avatar=t.n(_Avatar);
-const _DiscussionListItem=flarum.reg.get("core","forum/components/DiscussionListItem");var DiscussionListItem=t.n(_DiscussionListItem);
-const _DiscussionListState=flarum.reg.get("core","forum/states/DiscussionListState");var DiscussionListState=t.n(_DiscussionListState);
+// ---------------------------------------------------------------------------
+// Model extender — registers Discussion.prototype.participantPreview = hasMany
+// ---------------------------------------------------------------------------
+const _extend = [(new extenders.Model(Discussion)).hasMany("participantPreview")];
+t.d(o, {extend: () => _extend});
 
-// Model extender — registers Discussion.prototype.participantPreview = hasMany(...)
-// Exported as 'extend' array so bootExtensions calls extender.extend(app, ...).
-var E=[(new(extenders().Model)(Discussion())).hasMany("participantPreview")];
-t.d(o,{extend:()=>E});
+// ---------------------------------------------------------------------------
+// ParticipantsModal — paginated list of all discussion participants
+// ---------------------------------------------------------------------------
+const PAGE_SIZE = 10;
 
-// ParticipantsModal — extends Modal, using proper inheritance helpers
-var PAGE_SIZE=10;
-var ParticipantsModal=function(base){
-  function C(){return base.apply(this,arguments)||this}
-  _(C,base);
-  var p=C.prototype;
-  p.oninit=function(vnode){
-    base.prototype.oninit.call(this,vnode);
-    this._discussionId=vnode.attrs.discussion.id();
-    this.participants=[];this.page=0;this.total=null;this.loading=false;
+class ParticipantsModal extends Modal {
+  oninit(vnode) {
+    super.oninit(vnode);
+    this._discussionId = vnode.attrs.discussion.id();
+    this.participants  = [];
+    this.page          = 0;
+    this.total         = null;
+    this.loading       = false;
     this.loadPage();
-  };
-  p.onbeforeupdate=function(vnode){
-    // Flarum reuses the modal component instance between opens.
-    // If the discussion changed, reset all state and reload from page 0.
-    var newId=vnode.attrs.discussion.id();
-    if(newId!==this._discussionId){
-      this._discussionId=newId;
-      this.participants=[];this.page=0;this.total=null;this.loading=false;
+  }
+
+  onbeforeupdate(vnode) {
+    // Modal is reused between opens — reset if discussion changed.
+    const newId = vnode.attrs.discussion.id();
+    if (newId !== this._discussionId) {
+      this._discussionId = newId;
+      this.participants  = [];
+      this.page          = 0;
+      this.total         = null;
+      this.loading       = false;
       this.loadPage();
     }
-  };
-  p.className=function(){return"ParticipantsModal Modal--small";};
-  p.title=function(){var c=this.total!==null?this.total:(this.attrs.discussion.attribute("participantCount")||"");return app().translator.trans("resofire-discussion-participants.forum.modal_title",{count:c});};
-  p.content=function(){
-    var self=this;
-    if(this.participants.length===0&&this.loading)return m("div.Modal-body",m(LoadingIndicator()));
-    var totalPages=this.total!==null?Math.ceil(this.total/PAGE_SIZE):null;
-    var hasPrev=this.page>0;
-    var hasNext=this.total===null||((this.page+1)*PAGE_SIZE)<this.total;
-    var items=this.participants.map(function(u){
-      var displayName=u.displayName?u.displayName():(u.username?u.username():"");
-      var slug=u.slug?u.slug():(displayName||"");
-      return m("li.ParticipantsModal-item",m("a",{href:app().route("user",{username:slug}),onclick:function(){app().modal.close();}},
-        // 2.x: m(Avatar(), {user: u}) replaces avatar()(u)
-        m(Avatar(),{user:u}),
-        m("span.ParticipantsModal-username",displayName)));
+  }
+
+  className() { return "ParticipantsModal Modal--small"; }
+
+  title() {
+    const c = this.total !== null
+      ? this.total
+      : (this.attrs.discussion.attribute("participantCount") || "");
+    return app.translator.trans("resofire-discussion-participants.forum.modal_title", {count: c});
+  }
+
+  content() {
+    if (this.participants.length === 0 && this.loading) {
+      return m("div", {className:"Modal-body"}, m(LoadingIndicator));
+    }
+
+    const totalPages = this.total !== null ? Math.ceil(this.total / PAGE_SIZE) : null;
+    const hasPrev    = this.page > 0;
+    const hasNext    = this.total === null || ((this.page + 1) * PAGE_SIZE) < this.total;
+
+    const items = this.participants.map(u => {
+      const displayName = u.displayName ? u.displayName() : (u.username ? u.username() : "");
+      const slug        = u.slug ? u.slug() : (displayName || "");
+      return m("li", {className:"ParticipantsModal-item"},
+        m("a", {
+          href:    app.route("user", {username: slug}),
+          onclick: () => app.modal.close()
+        },
+          m(Avatar, {user: u}),
+          m("span", {className:"ParticipantsModal-username"}, displayName)
+        )
+      );
     });
-    var pagination=null;
-    if(hasPrev||hasNext){
-      pagination=m("div.ParticipantsModal-pagination",
-        m(Button(),{className:"Button",disabled:!hasPrev||this.loading,onclick:function(){self.page--;self.loadPage();}},"\u2190 Prev"),
-        m("span.ParticipantsModal-pageInfo",(this.page+1)+(totalPages!==null?" / "+totalPages:"")),
-        m(Button(),{className:"Button Button--primary",disabled:!hasNext||this.loading,onclick:function(){self.page++;self.loadPage();}},"Next \u2192")
+
+    let pagination = null;
+    if (hasPrev || hasNext) {
+      pagination = m("div", {className:"ParticipantsModal-pagination"},
+        m(Button, {
+          className:"Button",
+          disabled: !hasPrev || this.loading,
+          onclick:  () => { this.page--; this.loadPage(); }
+        }, "\u2190 Prev"),
+        m("span", {className:"ParticipantsModal-pageInfo"},
+          (this.page + 1) + (totalPages !== null ? " / " + totalPages : "")
+        ),
+        m(Button, {
+          className:"Button Button--primary",
+          disabled: !hasNext || this.loading,
+          onclick:  () => { this.page++; this.loadPage(); }
+        }, "Next \u2192")
       );
     }
-    return m("div.Modal-body",
-      this.loading?m(LoadingIndicator()):null,
-      m("ul.ParticipantsModal-list",items),
+
+    return m("div", {className:"Modal-body"},
+      this.loading ? m(LoadingIndicator) : null,
+      m("ul", {className:"ParticipantsModal-list"}, items),
       pagination
     );
-  };
-  p.loadPage=function(){
-    if(this.loading)return;
-    var self=this;this.loading=true;m.redraw();
-    app().request({method:"GET",url:app().forum.attribute("apiUrl")+"/discussions/"+this.attrs.discussion.id()+"/participants",params:{"page[offset]":self.page*PAGE_SIZE,"page[limit]":PAGE_SIZE}})
-      .then(function(r){
-        var remapped={data:(r.data||[]).map(function(i){return{type:"users",id:i.attributes.userId!=null?String(i.attributes.userId):i.id,attributes:{username:i.attributes.username,slug:i.attributes.slug,avatarUrl:i.attributes.avatarUrl,displayName:i.attributes.displayName,color:i.attributes.color}};})};
-        app().store.pushPayload(remapped);
-        var users=(r.data||[]).map(function(i){var uid=i.attributes.userId!=null?i.attributes.userId:i.id;return app().store.getById("users",String(uid));}).filter(Boolean);
-        self.participants=users;
-        self.total=(r.meta&&r.meta.total!=null)?r.meta.total:null;
-        self.loading=false;m.redraw();
-      })
-      .catch(function(){self.loading=false;m.redraw();});
-  };
-  return C;
-}(Modal());
+  }
 
-// DiscussionParticipants — preview strip in discussion list.
-// 'preview' items are Flarum User models from the store (via hasMany relationship).
-// Use user.displayName() for tooltip text (not username() helper — that returns a vnode).
-var DiscussionParticipants=function(base){
-  function C(){return base.apply(this,arguments)||this}
-  _(C,base);
-  C.prototype.view=function(){
-    var discussion=this.attrs.discussion;
-    var preview=(discussion.participantPreview()||[]).filter(Boolean);
-    if(!preview.length)return m("[");
-    // 7 avatars are always shown when the strip is full: 1 OP (shown by Flarum
-    // core) + 6 repliers (our strip). Overflow is simply how many participants
-    // are not represented by one of those 7 avatars.
-    var total=discussion.attribute("participantCount")!=null?discussion.attribute("participantCount"):0;
-    var overflowN=Math.max(0,total-7);
-    var avatars=preview.map(function(user){
-      var name=user.displayName?user.displayName():(user.username?user.username():"");
-      return m(Tooltip(),{text:name,position:"bottom"},
-        m("a.DiscussionParticipants-avatar",{href:app().route("user",{username:user.slug()}),onclick:function(e){e.stopPropagation();}},
-          // 2.x: m(Avatar(), {user: user}) replaces avatar()(user)
-          m(Avatar(),{user:user})));
+  loadPage() {
+    if (this.loading) return;
+    this.loading = true;
+    m.redraw();
+
+    app.request({
+      method: "GET",
+      url:    app.forum.attribute("apiUrl") + "/discussions/" + this.attrs.discussion.id() + "/participants",
+      params: {
+        "page[offset]": this.page * PAGE_SIZE,
+        "page[limit]":  PAGE_SIZE
+      }
+    })
+    .then(r => {
+      const remapped = {
+        data: (r.data || []).map(i => ({
+          type: "users",
+          id:   i.attributes.userId != null ? String(i.attributes.userId) : i.id,
+          attributes: {
+            username:    i.attributes.username,
+            slug:        i.attributes.slug,
+            avatarUrl:   i.attributes.avatarUrl,
+            displayName: i.attributes.displayName,
+            color:       i.attributes.color
+          }
+        }))
+      };
+      app.store.pushPayload(remapped);
+
+      this.participants = (r.data || []).map(i => {
+        const uid = i.attributes.userId != null ? i.attributes.userId : i.id;
+        return app.store.getById("users", String(uid));
+      }).filter(Boolean);
+
+      this.total   = (r.meta && r.meta.total != null) ? r.meta.total : null;
+      this.loading = false;
+      m.redraw();
+    })
+    .catch(() => { this.loading = false; m.redraw(); });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// DiscussionParticipants — avatar strip shown in the discussion list
+// ---------------------------------------------------------------------------
+class DiscussionParticipants extends Component {
+  view() {
+    const discussion = this.attrs.discussion;
+    const preview    = (discussion.participantPreview() || []).filter(Boolean);
+    if (!preview.length) return m("[");
+
+    // participantCount covers all participants; we show 6 in the strip
+    // (core shows the OP separately), so overflow = total - 7.
+    const total     = discussion.attribute("participantCount") != null
+                        ? discussion.attribute("participantCount") : 0;
+    const overflowN = Math.max(0, total - 7);
+
+    const avatars = preview.map(user => {
+      const name = user.displayName ? user.displayName() : (user.username ? user.username() : "");
+      return m(Tooltip, {text: name, position: "bottom"},
+        m("a", {
+          className: "DiscussionParticipants-avatar",
+          href:      app.route("user", {username: user.slug()}),
+          onclick:   e => e.stopPropagation()
+        },
+          m(Avatar, {user})
+        )
+      );
     });
-    var overflowBtn=null;
-    if(overflowN>0){
-      overflowBtn=m("button.DiscussionParticipants-overflow.Button.Button--icon.Button--flat",{type:"button",
-        title:app().translator.trans("resofire-discussion-participants.forum.show_all_participants"),
-        onclick:function(e){e.stopPropagation();e.preventDefault();app().modal.show(ParticipantsModal,{discussion:discussion});}
-      },"+"+overflowN);
-    }
-    return m("div.DiscussionParticipants",avatars,overflowBtn);
-  };
-  return C;
-}(Component());
 
-app().initializers.add("resofire-discussion-participants",function(){
-  // Extend DiscussionListState.requestParams to add participantPreview to the
-  // include array. PaginatedListState.loadPage joins this into ?include=...,
-  // so the server serializes participantPreview users on every load-more fetch,
-  // not just the initial preloaded document. Without this, hasMany lookups
-  // return empty on every page after the first.
-  (0,_extend.extend)(DiscussionListState().prototype,"requestParams",function(params){
+    const overflowBtn = overflowN > 0
+      ? m("button", {
+          className: "DiscussionParticipants-overflow Button Button--icon Button--flat",
+          type:      "button",
+          title:     app.translator.trans("resofire-discussion-participants.forum.show_all_participants"),
+          onclick:   e => {
+            e.stopPropagation();
+            e.preventDefault();
+            app.modal.show(ParticipantsModal, {discussion});
+          }
+        }, "+" + overflowN)
+      : null;
+
+    return m("div", {className:"DiscussionParticipants"}, avatars, overflowBtn);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Initializer — extend DiscussionListState, DiscussionListItem, ReplyComposer
+// ---------------------------------------------------------------------------
+app.initializers.add("resofire-discussion-participants", () => {
+
+  // Add participantPreview to the include list so every load-more page
+  // fetches participant data alongside discussions.
+  extend(DiscussionListState.prototype, "requestParams", function(params) {
     params.include.push("participantPreview");
   });
 
-  (0,_extend.extend)(DiscussionListItem().prototype,"infoItems",function(items){
-    var discussion=this.attrs.discussion;
-    var preview=(discussion.participantPreview()||[]).filter(Boolean);
-    if(!preview.length)return;
-    items.add("participants",m(DiscussionParticipants,{discussion:discussion}),-10);
+  // Inject the avatar strip into each discussion list row.
+  extend(DiscussionListItem.prototype, "infoItems", function(items) {
+    const discussion = this.attrs.discussion;
+    const preview    = (discussion.participantPreview() || []).filter(Boolean);
+    if (!preview.length) return;
+    items.add("participants", m(DiscussionParticipants, {discussion}), -10);
   });
 
+  // Optimistic update: append current user to the preview strip immediately
+  // after they post a reply, without waiting for a page refresh.
+  override(ReplyComposer.prototype, "onsubmit", function(original) {
+    const discussion    = this.attrs.discussion;
+    const discussionId  = String(discussion.id());
+    const currentUser   = app.session.user;
 
-  // When a new post is saved successfully and the preview strip has fewer than
-  // 6 avatars, append the current user's avatar to the strip immediately so it
-  // appears without a page refresh.
-  //
-  // Strategy: override ReplyComposer.onsubmit. Before calling original(), wrap
-  // app.store.createRecord so we can chain onto the save promise. When the post
-  // resolves we check if the current user is already in the preview strip; if
-  // not and there is room (< 6), we patch the participantPreview relationship
-  // data directly on the discussion model in the store and trigger a redraw.
-  // createRecord is restored immediately after being called so no other code
-  // is affected.
-  (0,_extend.override)(ReplyComposer().prototype,"onsubmit",function(original){
-    var self=this;
-    var discussion=self.attrs.discussion;
-    var discussionId=String(discussion.id());
-    var currentUser=app().session.user;
+    if (!currentUser) { original(); return; }
 
-    // If we can't identify the current user, just run normally.
-    if(!currentUser){
-      original();
-      return;
-    }
+    const currentUserId = String(currentUser.id());
 
-    var currentUserId=String(currentUser.id());
+    // Intercept the very next createRecord("posts") call only.
+    const originalCreateRecord = app.store.createRecord.bind(app.store);
+    app.store.createRecord = (type, data) => {
+      app.store.createRecord = originalCreateRecord; // restore immediately
+      const record = originalCreateRecord(type, data);
 
-    // Wrap createRecord just-in-time so we intercept only this save call.
-    var originalCreateRecord=app().store.createRecord.bind(app().store);
-    app().store.createRecord=function(type,data){
-      // Restore immediately — only intercept this one call.
-      app().store.createRecord=originalCreateRecord;
-      var record=originalCreateRecord(type,data);
-      if(type==="posts"){
-        var originalSave=record.save.bind(record);
-        record.save=function(saveData){
-          return originalSave(saveData).then(function(post){
-            var disc=app().store.getById("discussions",discussionId);
-            if(!disc)return post;
+      if (type === "posts") {
+        const originalSave = record.save.bind(record);
+        record.save = saveData => originalSave(saveData).then(post => {
+          const disc = app.store.getById("discussions", discussionId);
+          if (!disc) return post;
 
-            var preview=(disc.participantPreview()||[]).filter(Boolean);
+          const preview = (disc.participantPreview() || []).filter(Boolean);
+          if (preview.length >= 6) return post;
 
-            // Only patch if strip has room (< 6) and user not already present.
-            if(preview.length>=6)return post;
-            var alreadyIn=preview.some(function(u){return String(u.id())===currentUserId;});
-            if(alreadyIn)return post;
+          const alreadyIn = preview.some(u => String(u.id()) === currentUserId);
+          if (alreadyIn) return post;
 
-            // Append current user to the participantPreview relationship data.
-            var rel=disc.data.relationships=disc.data.relationships||{};
-            rel.participantPreview=rel.participantPreview||{data:[]};
-            if(!Array.isArray(rel.participantPreview.data)){
-              rel.participantPreview.data=[];
-            }
-            rel.participantPreview.data.push({type:"users",id:currentUserId});
-            disc.freshness=new Date();
-            m.redraw();
+          const rel = disc.data.relationships = disc.data.relationships || {};
+          rel.participantPreview = rel.participantPreview || {data: []};
+          if (!Array.isArray(rel.participantPreview.data)) rel.participantPreview.data = [];
+          rel.participantPreview.data.push({type: "users", id: currentUserId});
+          disc.freshness = new Date();
+          m.redraw();
 
-            return post;
-          });
-        };
+          return post;
+        });
       }
       return record;
     };
