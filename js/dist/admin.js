@@ -1,220 +1,179 @@
 (()=>{var t={n:o=>{var s=o&&o.__esModule?()=>o.default:()=>o;return t.d(s,{a:s}),s},d:(o,s)=>{for(var n in s)t.o(s,n)&&!t.o(o,n)&&Object.defineProperty(o,n,{enumerable:!0,get:s[n]})},o:(t,o)=>Object.prototype.hasOwnProperty.call(t,o),r:t=>{"undefined"!=typeof Symbol&&Symbol.toStringTag&&Object.defineProperty(t,Symbol.toStringTag,{value:"Module"}),Object.defineProperty(t,"__esModule",{value:!0})}},o={};(()=>{"use strict";t.r(o);
 
-// Inheritance helpers — exact pattern from flarum/likes compiled bundle.
-function g(t,o){return g=Object.setPrototypeOf?Object.setPrototypeOf.bind():function(t,o){return t.__proto__=o,t},g(t,o)}
-function _(t,o){t.prototype=Object.create(o.prototype),t.prototype.constructor=t,g(t,o)}
+// ---------------------------------------------------------------------------
+// Imports — flarum.reg.get() is the 2.x module system.
+// Reference classes directly; do NOT wrap in .n() — that returns a function
+// that returns the class, not the class itself, breaking `new` and `extends`.
+// ---------------------------------------------------------------------------
+const app              = flarum.reg.get("core","admin/app");
+const Button           = flarum.reg.get("core","common/components/Button");
+const Modal            = flarum.reg.get("core","common/components/Modal");
+const LoadingIndicator = flarum.reg.get("core","common/components/LoadingIndicator");
+const ExtensionPage    = flarum.reg.get("core","admin/components/ExtensionPage");
+const extenders        = flarum.reg.get("core","common/extenders");
 
-// --- Imports (2.x: flarum.reg.get replaces flarum.core.compat) ---
-// "components/ExtensionPage" renamed to "admin/components/ExtensionPage" in 2.x.
-const _app=flarum.reg.get("core","admin/app");var app=t.n(_app);
-const _Button=flarum.reg.get("core","common/components/Button");var Button=t.n(_Button);
-const _Modal=flarum.reg.get("core","common/components/Modal");var Modal=t.n(_Modal);
-const _LoadingIndicator=flarum.reg.get("core","common/components/LoadingIndicator");var LoadingIndicator=t.n(_LoadingIndicator);
-const _ExtensionPage=flarum.reg.get("core","admin/components/ExtensionPage");var ExtensionPage=t.n(_ExtensionPage);
-
-var CHUNK_SIZE=2000;
+const CHUNK_SIZE = 2000;
 
 // ---------------------------------------------------------------------------
-// RecalculateModal
+// RecalculateModal — ES6 class extends (required for native ES6 base classes)
 // ---------------------------------------------------------------------------
-var RecalculateModal=function(base){
-  function C(){return base.apply(this,arguments)||this}
-  _(C,base);
+class RecalculateModal extends Modal {
+  static get isDismissibleViaCloseButton()  { return false; }
+  static get isDismissibleViaEscKey()       { return false; }
+  static get isDismissibleViaBackdropClick(){ return false; }
 
-  // isDismissible must be a static property on the constructor — Flarum reads
-  // Constructor.dismissibleOptions which checks the static isDismissible flag.
-  // Setting it on the prototype via p.isDismissible = fn has no effect.
-  C.isDismissible=false;
-
-  var p=C.prototype;
-
-  p.oninit=function(vnode){
-    base.prototype.oninit.call(this,vnode);
-    this.total=0;
-    this.processed=0;
-    this.running=true;
-    this.complete=false;
-    this.errorMsg=null;
-    this.chunkLog=[];
-    this.totalElapsed=null;
+  oninit(vnode) {
+    super.oninit(vnode);
+    this.total        = 0;
+    this.processed    = 0;
+    this.running      = true;
+    this.complete     = false;
+    this.errorMsg     = null;
+    this.chunkLog     = [];
+    this.totalElapsed = null;
     this.run();
-  };
+  }
 
-  p.className=function(){return"RecalculateModal Modal--small";};
+  className() { return "RecalculateModal Modal--small"; }
 
-  p.title=function(){
-    return app().translator.trans("resofire-discussion-participants.admin.recalculate_modal_title");
-  };
+  title() {
+    return app.translator.trans("resofire-discussion-participants.admin.recalculate_modal_title");
+  }
 
-  p.content=function(){
-    var self=this;
-    var pct=self.total>0?Math.round((self.processed/self.total)*100):0;
+  content() {
+    const pct = this.total > 0 ? Math.round((this.processed / this.total) * 100) : 0;
 
-    var warning=self.running
-      ?m("div.Alert.Alert--warning",{style:"margin-bottom:1rem;display:flex;align-items:center;gap:8px;"},
-          m("span.fas.fa-exclamation-triangle",{style:"flex-shrink:0;"}),
-          m("span",app().translator.trans("resofire-discussion-participants.admin.recalculate_modal_warning")))
-      :null;
+    const warning = this.running
+      ? m("div", {className:"Alert Alert--warning", style:"margin-bottom:1rem;display:flex;align-items:center;gap:8px;"},
+          m("span", {className:"fas fa-exclamation-triangle", style:"flex-shrink:0;"}),
+          m("span", app.translator.trans("resofire-discussion-participants.admin.recalculate_modal_warning")))
+      : null;
 
-    var progressBar=m("div",{style:"background:var(--control-bg);border-radius:6px;overflow:hidden;height:18px;margin-bottom:0.75rem;"},
-      m("div",{style:"width:"+pct+"%;height:100%;background:var(--primary-color);transition:width 0.3s ease;"})
+    const progressBar = m("div", {style:"background:var(--control-bg);border-radius:6px;overflow:hidden;height:18px;margin-bottom:0.75rem;"},
+      m("div", {style:"width:"+pct+"%;height:100%;background:var(--primary-color);transition:width 0.3s ease;"})
     );
 
-    var statusLine=self.complete
-      ?m("p",{style:"text-align:center;margin:0;color:var(--success-color,#57a957);font-weight:600;"},
-          app().translator.trans("resofire-discussion-participants.admin.recalculate_modal_complete",{total:self.total}))
-      :self.errorMsg
-        ?m("p",{style:"text-align:center;margin:0;color:#c0392b;"},self.errorMsg)
-        :m("p",{style:"text-align:center;margin:0;color:var(--muted-color);"},
-            app().translator.trans("resofire-discussion-participants.admin.recalculate_modal_progress",
-              {processed:self.processed,total:self.total}),
+    const statusLine = this.complete
+      ? m("p", {style:"text-align:center;margin:0;color:var(--success-color,#57a957);font-weight:600;"},
+          app.translator.trans("resofire-discussion-participants.admin.recalculate_modal_complete", {total:this.total}))
+      : this.errorMsg
+        ? m("p", {style:"text-align:center;margin:0;color:#c0392b;"}, this.errorMsg)
+        : m("p", {style:"text-align:center;margin:0;color:var(--muted-color);"},
+            app.translator.trans("resofire-discussion-participants.admin.recalculate_modal_progress",
+              {processed:this.processed, total:this.total}),
             " ("+pct+"%)");
 
-    var action=self.running
-      ?m("div",{style:"display:flex;justify-content:center;margin-top:1.25rem;"},
-          m(LoadingIndicator(),{size:"small",display:"inline"}))
-      :m("div",{style:"display:flex;justify-content:center;margin-top:1.25rem;"},
-          m(Button(),{
+    const action = this.running
+      ? m("div", {style:"display:flex;justify-content:center;margin-top:1.25rem;"},
+          m(LoadingIndicator, {size:"small", display:"inline"}))
+      : m("div", {style:"display:flex;justify-content:center;margin-top:1.25rem;"},
+          m(Button, {
             className:"Button Button--primary",
-            onclick:function(){app().modal.close();}
-          },app().translator.trans("resofire-discussion-participants.admin.recalculate_modal_close")));
+            onclick: () => app.modal.close()
+          }, app.translator.trans("resofire-discussion-participants.admin.recalculate_modal_close")));
 
-    // Chunk log — appears after the first chunk completes, scrollable.
-    var chunkLog=self.chunkLog.length>0
-      ?m("div",{style:"margin-top:1rem;max-height:160px;overflow-y:auto;font-size:0.8rem;font-family:monospace;background:var(--control-bg);border-radius:4px;padding:0.5rem 0.75rem;"},
-          self.chunkLog.map(function(entry,i){
-            return m("div",{key:i,style:"padding:1px 0;color:var(--muted-color);"},
-              "Chunk "+(i+1)+": discussions "+entry.from+"–"+entry.to+" — "+entry.secs+"s"
-            );
-          }),
-          self.complete&&self.totalElapsed!==null
-            ?m("div",{style:"margin-top:0.4rem;padding-top:0.4rem;border-top:1px solid var(--control-border-color,#ddd);font-weight:600;color:var(--body-color);"},
-                "Total: "+self.totalElapsed+"s")
-            :null
+    const chunkLog = this.chunkLog.length > 0
+      ? m("div", {style:"margin-top:1rem;max-height:160px;overflow-y:auto;font-size:0.8rem;font-family:monospace;background:var(--control-bg);border-radius:4px;padding:0.5rem 0.75rem;"},
+          this.chunkLog.map((entry, i) =>
+            m("div", {key:i, style:"padding:1px 0;color:var(--muted-color);"},
+              "Chunk "+(i+1)+": discussions "+entry.from+"-"+entry.to+" - "+entry.secs+"s"
+            )
+          ),
+          (this.complete && this.totalElapsed !== null)
+            ? m("div", {style:"margin-top:0.4rem;padding-top:0.4rem;border-top:1px solid var(--control-border-color,#ddd);font-weight:600;color:var(--body-color);"},
+                "Total: "+this.totalElapsed+"s")
+            : null
         )
-      :null;
+      : null;
 
-    return m("div.Modal-body",{style:"padding:1.5rem;"},
-      warning,
-      progressBar,
-      statusLine,
-      chunkLog,
-      action
+    return m("div", {className:"Modal-body", style:"padding:1.5rem;"},
+      warning, progressBar, statusLine, chunkLog, action
     );
-  };
+  }
 
-  p.run=function(){
-    var self=this;
-    var recalcUrl=app().forum.attribute("apiUrl")+"/resofire/participants/recalculate";
+  run() {
+    const recalcUrl    = app.forum.attribute("apiUrl") + "/resofire/participants/recalculate";
+    const suppressAlert = {errorHandler: (e) => { throw e; }};
 
-    // Suppress Flarum's default global error alert for all our requests so
-    // that failures surface only inside the modal, not as a page-level Oops.
-    var suppressAlert={errorHandler:function(e){throw e;}};
-
-    // Step 1: GET total.
-    app().request(Object.assign({method:"GET",url:recalcUrl},suppressAlert))
-      .then(function(r){
-        self.total=(r&&r.total)||0;
-        var totalMs=0;
+    app.request(Object.assign({method:"GET", url:recalcUrl}, suppressAlert))
+      .then(r => {
+        this.total = (r && r.total) || 0;
+        let totalMs = 0;
         m.redraw();
 
-        if(self.total===0){
-          self.running=false;
-          self.complete=true;
-          self.totalElapsed="0.0";
+        if (this.total === 0) {
+          this.running      = false;
+          this.complete     = true;
+          this.totalElapsed = "0.0";
           m.redraw();
           return;
         }
 
-        // Step 2: sequential chunk loop.
-        // Pass body as a plain object — m.request serialises it to JSON and
-        // sets Content-Type: application/json automatically. Passing a
-        // pre-stringified string causes double-encoding and a parse failure.
-        function runChunk(offset){
-          return app().request(Object.assign({
-            method:"POST",
-            url:recalcUrl,
-            body:{offset:offset,limit:CHUNK_SIZE}
-          },suppressAlert)).then(function(d){
-            var recomputed=d&&d.recomputed||0;
-            var chunkMs=d&&d.duration_ms||0;
-            totalMs+=chunkMs;
-            var done=offset+recomputed;
-            self.processed=Math.min(done,self.total);
-
-            // Log this chunk: range and server-measured duration.
-            var rangeFrom=offset+1;
-            var rangeTo=Math.min(offset+recomputed,self.total);
-            var secs=(chunkMs/1000).toFixed(1);
-            self.chunkLog.push({from:rangeFrom,to:rangeTo,secs:secs});
+        const runChunk = (offset) =>
+          app.request(Object.assign({
+            method:"POST", url:recalcUrl,
+            body:{offset:offset, limit:CHUNK_SIZE}
+          }, suppressAlert)).then(d => {
+            const recomputed = (d && d.recomputed) || 0;
+            const chunkMs    = (d && d.duration_ms)  || 0;
+            totalMs += chunkMs;
+            const done = offset + recomputed;
+            this.processed = Math.min(done, this.total);
+            this.chunkLog.push({
+              from: offset + 1,
+              to:   Math.min(offset + recomputed, this.total),
+              secs: (chunkMs / 1000).toFixed(1)
+            });
             m.redraw();
 
-            if(done<self.total){
-              return runChunk(offset+CHUNK_SIZE);
-            }
+            if (done < this.total) return runChunk(offset + CHUNK_SIZE);
 
-            // All chunks complete — sum of chunk times is the total.
-            self.processed=self.total;
-            self.running=false;
-            self.complete=true;
-            self.totalElapsed=(totalMs/1000).toFixed(1);
+            this.processed    = this.total;
+            this.running      = false;
+            this.complete     = true;
+            this.totalElapsed = (totalMs / 1000).toFixed(1);
             m.redraw();
           });
-        }
 
         return runChunk(0);
       })
-      .catch(function(e){
-        self.running=false;
-        self.errorMsg=(e&&e.message)||app().translator.trans("resofire-discussion-participants.admin.recalculate_error");
+      .catch(e => {
+        this.running  = false;
+        this.errorMsg = (e && e.message) ||
+          app.translator.trans("resofire-discussion-participants.admin.recalculate_error");
         m.redraw();
       });
-  };
-
-  return C;
-}(Modal());
+  }
+}
 
 // ---------------------------------------------------------------------------
-// ParticipantsExtensionPage
-// Custom extension page that renders the Recalculate button without a
-// settings form wrapper, eliminating the spurious Save Changes button that
-// registerSetting appends automatically.
-// Extends ExtensionPage so the standard header (title, enable toggle,
-// description, version) is preserved unchanged.
+// ParticipantsExtensionPage — only content() overridden; full header/toggle
+// inherited from ExtensionPage unchanged.
 // ---------------------------------------------------------------------------
-var ParticipantsExtensionPage=function(base){
-  function C(){return base.apply(this,arguments)||this}
-  _(C,base);
-
-  // Override only content() — header(), sections(), permissions grid etc.
-  // all remain from ExtensionPage unchanged.
-  C.prototype.content=function(){
-    return m("div.ExtensionPage-settings",
-      m("div.container",
-        m("p.helpText",app().translator.trans("resofire-discussion-participants.admin.recalculate_help")),
-        m("div.Form-group",
-          m(Button(),{
+class ParticipantsExtensionPage extends ExtensionPage {
+  content() {
+    return m("div", {className:"ExtensionPage-settings"},
+      m("div", {className:"container"},
+        m("p", {className:"helpText"},
+          app.translator.trans("resofire-discussion-participants.admin.recalculate_help")),
+        m("div", {className:"Form-group"},
+          m(Button, {
             className:"Button Button--primary",
-            onclick:function(){app().modal.show(RecalculateModal);}
-          },app().translator.trans("resofire-discussion-participants.admin.recalculate_button"))
+            onclick: () => app.modal.show(RecalculateModal)
+          }, app.translator.trans("resofire-discussion-participants.admin.recalculate_button"))
         )
       )
     );
-  };
-
-  return C;
-}(ExtensionPage());
+  }
+}
 
 // ---------------------------------------------------------------------------
-// Admin extender — 2.x pattern (no extensionData.for, no initializer).
-// The Admin extender's .page() method registers the custom extension page.
-// The extend array is exported so Flarum's bootExtensions() can call .extend().
+// Export the extend array — Flarum's bootExtensions() calls .extend() on each
+// item. Admin.page() registers our custom page for this extension's route.
 // ---------------------------------------------------------------------------
-const _extenders=flarum.reg.get("core","common/extenders");var extenders=t.n(_extenders);
+t.d(o, {extend: () => _extend});
+const _extend = [(new extenders.Admin()).page(ParticipantsExtensionPage)];
 
-t.d(o,{extend:()=>_extend});
-const _extend=[(new(extenders().Admin)).page(ParticipantsExtensionPage)];
-
-app().initializers.add("resofire-discussion-participants",function(){});
+app.initializers.add("resofire-discussion-participants", () => {});
 
 })(),module.exports=o})();
