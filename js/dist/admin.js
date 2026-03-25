@@ -206,11 +206,15 @@ var ParticipantsExtensionPage=function(base){
 }(ExtensionPage());
 
 // ---------------------------------------------------------------------------
-// Admin initializer — registers the custom page (no registerSetting needed).
+// Admin extender — 2.x pattern (no extensionData.for, no initializer).
+// The Admin extender's .page() method registers the custom extension page.
+// The extend array is exported so Flarum's bootExtensions() can call .extend().
 // ---------------------------------------------------------------------------
-app().initializers.add("resofire-discussion-participants",function(){
-  app().extensionData.for("resofire-discussion-participants")
-    .registerPage(ParticipantsExtensionPage);
-});
+const _extenders=flarum.reg.get("core","common/extenders");var extenders=t.n(_extenders);
+
+t.d(o,{extend:()=>_extend});
+const _extend=[(new(extenders().Admin)).page(ParticipantsExtensionPage)];
+
+app().initializers.add("resofire-discussion-participants",function(){});
 
 })(),module.exports=o})();
