@@ -1,23 +1,31 @@
 (()=>{var t={n:o=>{var s=o&&o.__esModule?()=>o.default:()=>o;return t.d(s,{a:s}),s},d:(o,s)=>{for(var n in s)t.o(s,n)&&!t.o(o,n)&&Object.defineProperty(o,n,{enumerable:!0,get:s[n]})},o:(t,o)=>Object.prototype.hasOwnProperty.call(t,o),r:t=>{"undefined"!=typeof Symbol&&Symbol.toStringTag&&Object.defineProperty(t,Symbol.toStringTag,{value:"Module"}),Object.defineProperty(t,"__esModule",{value:!0})}},o={};(()=>{"use strict";t.r(o);
 
 // ---------------------------------------------------------------------------
-// Imports — reference classes directly, NO .n() wrappers, NO () invocations.
-// .n() returns a getter function, not the class itself. Using it breaks both
-// `extends` and `new`. flarum.reg.get() already returns the class/object.
+// Imports
+//
+// IMPORTANT: DiscussionListItem, DiscussionListState and ReplyComposer are all
+// chunk modules (lazy-loaded). flarum.reg.get() returns undefined for them at
+// boot time. Do NOT reference them directly in the initializer — use the
+// string-path form of extend/override instead, which calls flarum.reg.onLoad
+// internally and defers until the chunk is loaded.
+//
+// Components used in vnodes (Avatar, Tooltip, etc.) are eagerly registered and
+// safe to import directly.
 // ---------------------------------------------------------------------------
-const app               = flarum.reg.get("core","forum/app");
+const app              = flarum.reg.get("core","forum/app");
 const { extend, override } = flarum.reg.get("core","common/extend");
-const extenders         = flarum.reg.get("core","common/extenders");
-const Discussion        = flarum.reg.get("core","common/models/Discussion");
-const Component         = flarum.reg.get("core","common/Component");
-const Modal             = flarum.reg.get("core","common/components/Modal");
-const Button            = flarum.reg.get("core","common/components/Button");
-const LoadingIndicator  = flarum.reg.get("core","common/components/LoadingIndicator");
-const Tooltip           = flarum.reg.get("core","common/components/Tooltip");
-const Avatar            = flarum.reg.get("core","common/components/Avatar");
-const DiscussionListItem  = flarum.reg.get("core","forum/components/DiscussionListItem");
-const DiscussionListState = flarum.reg.get("core","forum/states/DiscussionListState");
-const ReplyComposer       = flarum.reg.get("core","forum/components/ReplyComposer");
+const extenders        = flarum.reg.get("core","common/extenders");
+const Discussion       = flarum.reg.get("core","common/models/Discussion");
+const Component        = flarum.reg.get("core","common/Component");
+const Modal            = flarum.reg.get("core","common/components/Modal");
+const Button           = flarum.reg.get("core","common/components/Button");
+const LoadingIndicator = flarum.reg.get("core","common/components/LoadingIndicator");
+const Tooltip          = flarum.reg.get("core","common/components/Tooltip");
+const Avatar           = flarum.reg.get("core","common/components/Avatar");
+// Chunk modules — imported by string path only, never as direct references.
+// const DiscussionListItem  — chunk, use string path
+// const DiscussionListState — chunk, use string path
+// const ReplyComposer       — chunk, use string path
 
 // ---------------------------------------------------------------------------
 // Model extender — registers Discussion.prototype.participantPreview = hasMany
@@ -42,7 +50,6 @@ class ParticipantsModal extends Modal {
   }
 
   onbeforeupdate(vnode) {
-    // Modal is reused between opens — reset if discussion changed.
     const newId = vnode.attrs.discussion.id();
     if (newId !== this._discussionId) {
       this._discussionId = newId;
@@ -163,8 +170,6 @@ class DiscussionParticipants extends Component {
     const preview    = (discussion.participantPreview() || []).filter(Boolean);
     if (!preview.length) return m("[");
 
-    // participantCount covers all participants; we show 6 in the strip
-    // (core shows the OP separately), so overflow = total - 7.
     const total     = discussion.attribute("participantCount") != null
                         ? discussion.attribute("participantCount") : 0;
     const overflowN = Math.max(0, total - 7);
@@ -200,68 +205,79 @@ class DiscussionParticipants extends Component {
 }
 
 // ---------------------------------------------------------------------------
-// Initializer — extend DiscussionListState, DiscussionListItem, ReplyComposer
+// Initializer — uses STRING-PATH form of extend/override for all three chunk
+// targets. This defers execution via flarum.reg.onLoad until the chunk loads,
+// avoiding the undefined.prototype crash.
+//
+// String path format for core modules: "flarum/forum/components/ComponentName"
 // ---------------------------------------------------------------------------
 app.initializers.add("resofire-discussion-participants", () => {
 
-  // Add participantPreview to the include list so every load-more page
-  // fetches participant data alongside discussions.
-  extend(DiscussionListState.prototype, "requestParams", function(params) {
-    params.include.push("participantPreview");
-  });
+  // extend(stringPath, method, callback) — defers until chunk is loaded
+  extend(
+    "flarum/forum/states/DiscussionListState",
+    "requestParams",
+    function(params) {
+      params.include.push("participantPreview");
+    }
+  );
 
-  // Inject the avatar strip into each discussion list row.
-  extend(DiscussionListItem.prototype, "infoItems", function(items) {
-    const discussion = this.attrs.discussion;
-    const preview    = (discussion.participantPreview() || []).filter(Boolean);
-    if (!preview.length) return;
-    items.add("participants", m(DiscussionParticipants, {discussion}), -10);
-  });
+  extend(
+    "flarum/forum/components/DiscussionListItem",
+    "infoItems",
+    function(items) {
+      const discussion = this.attrs.discussion;
+      const preview    = (discussion.participantPreview() || []).filter(Boolean);
+      if (!preview.length) return;
+      items.add("participants", m(DiscussionParticipants, {discussion}), -10);
+    }
+  );
 
-  // Optimistic update: append current user to the preview strip immediately
-  // after they post a reply, without waiting for a page refresh.
-  override(ReplyComposer.prototype, "onsubmit", function(original) {
-    const discussion    = this.attrs.discussion;
-    const discussionId  = String(discussion.id());
-    const currentUser   = app.session.user;
+  override(
+    "flarum/forum/components/ReplyComposer",
+    "onsubmit",
+    function(original) {
+      const discussion   = this.attrs.discussion;
+      const discussionId = String(discussion.id());
+      const currentUser  = app.session.user;
 
-    if (!currentUser) { original(); return; }
+      if (!currentUser) { original(); return; }
 
-    const currentUserId = String(currentUser.id());
+      const currentUserId = String(currentUser.id());
 
-    // Intercept the very next createRecord("posts") call only.
-    const originalCreateRecord = app.store.createRecord.bind(app.store);
-    app.store.createRecord = (type, data) => {
-      app.store.createRecord = originalCreateRecord; // restore immediately
-      const record = originalCreateRecord(type, data);
+      const originalCreateRecord = app.store.createRecord.bind(app.store);
+      app.store.createRecord = (type, data) => {
+        app.store.createRecord = originalCreateRecord;
+        const record = originalCreateRecord(type, data);
 
-      if (type === "posts") {
-        const originalSave = record.save.bind(record);
-        record.save = saveData => originalSave(saveData).then(post => {
-          const disc = app.store.getById("discussions", discussionId);
-          if (!disc) return post;
+        if (type === "posts") {
+          const originalSave = record.save.bind(record);
+          record.save = saveData => originalSave(saveData).then(post => {
+            const disc = app.store.getById("discussions", discussionId);
+            if (!disc) return post;
 
-          const preview = (disc.participantPreview() || []).filter(Boolean);
-          if (preview.length >= 6) return post;
+            const preview = (disc.participantPreview() || []).filter(Boolean);
+            if (preview.length >= 6) return post;
 
-          const alreadyIn = preview.some(u => String(u.id()) === currentUserId);
-          if (alreadyIn) return post;
+            const alreadyIn = preview.some(u => String(u.id()) === currentUserId);
+            if (alreadyIn) return post;
 
-          const rel = disc.data.relationships = disc.data.relationships || {};
-          rel.participantPreview = rel.participantPreview || {data: []};
-          if (!Array.isArray(rel.participantPreview.data)) rel.participantPreview.data = [];
-          rel.participantPreview.data.push({type: "users", id: currentUserId});
-          disc.freshness = new Date();
-          m.redraw();
+            const rel = disc.data.relationships = disc.data.relationships || {};
+            rel.participantPreview = rel.participantPreview || {data: []};
+            if (!Array.isArray(rel.participantPreview.data)) rel.participantPreview.data = [];
+            rel.participantPreview.data.push({type: "users", id: currentUserId});
+            disc.freshness = new Date();
+            m.redraw();
 
-          return post;
-        });
-      }
-      return record;
-    };
+            return post;
+          });
+        }
+        return record;
+      };
 
-    original();
-  });
+      original();
+    }
+  );
 });
 
 })(),module.exports=o})();
