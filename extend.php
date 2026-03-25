@@ -1,84 +1,43 @@
 <?php
 
 use Flarum\Api\Endpoint;
-use Flarum\Api\Resource\DiscussionResource;
+use Flarum\Api\Resource;
 use Flarum\Api\Schema;
+use Flarum\Discussion\Discussion;
 use Flarum\Extend;
-use Resofire\DiscussionParticipants\Api\Controller\ListDiscussionParticipantsController;
-use Resofire\DiscussionParticipants\Api\Controller\RecalculateParticipantsController;
-use Resofire\DiscussionParticipants\Console\PopulateParticipantPreviews;
-use Resofire\DiscussionParticipants\Listener\UpdateParticipantPreview;
-
+use Flarum\User\User;
+use Resofire\BlogCards\Api\Controller\RecalculateParticipantsController;
+use Resofire\BlogCards\Console\PopulateParticipantPreviews;
+use Resofire\BlogCards\Listener\UpdateParticipantPreview;
 
 return [
-    // -------------------------------------------------------------------------
-    // Frontend assets
-    // -------------------------------------------------------------------------
     (new Extend\Frontend('forum'))
         ->js(__DIR__ . '/js/dist/forum.js')
         ->css(__DIR__ . '/less/forum.less'),
 
     (new Extend\Frontend('admin'))
-        ->js(__DIR__ . '/js/dist/admin.js'),
+        ->js(__DIR__ . '/js/dist/admin.js')
+        ->css(__DIR__ . '/less/admin.less'),
 
-    new Extend\Locales(__DIR__ . '/locale'),
+    (new Extend\Locales(__DIR__ . '/locale')),
 
-    // -------------------------------------------------------------------------
-    // Console command (one-time backfill for existing forums)
-    //
-    // Run once after installation:
-    //   php flarum participants:populate
-    //   php flarum participants:populate --chunk=200
-    //
-    // New posts after installation are handled by the event listener below.
-    // -------------------------------------------------------------------------
-    (new Extend\Console())
-        ->command(PopulateParticipantPreviews::class),
+    (new Extend\Settings())
+        ->serializeToForum('resofireBlogCardsOnIndexPage', 'resofire_blog_cards_onIndexPage')
+        ->default('resofire_blog_cards_onIndexPage', 0)
+        ->serializeToForum('resofireBlogCardsTagIds', 'resofire_blog_cards_tagIds')
+        ->default('resofire_blog_cards_tagIds', '[]')
+        ->serializeToForum('resofireBlogCardsFullWidth', 'resofire_blog_cards_fullWidth')
+        ->default('resofire_blog_cards_fullWidth', 0)
+        ->serializeToForum('resofireBlogCardsShowParticipants', 'resofire_blog_cards_showParticipants')
+        ->default('resofire_blog_cards_showParticipants', 1),
 
-    // -------------------------------------------------------------------------
-    // Event subscriber: keeps preview table in sync with posts.
-    // -------------------------------------------------------------------------
-    (new Extend\Event())
-        ->subscribe(UpdateParticipantPreview::class),
-
-    // -------------------------------------------------------------------------
-    // New API route: paginated participant list for the modal
-    //
-    // GET /api/discussions/{id}/participants
-    //   ?page[offset]=0&page[limit]=20
-    // -------------------------------------------------------------------------
-    (new Extend\Routes('api'))
-        ->get(
-            '/discussions/{id}/participants',
-            'resofire.discussions.participants',
-            ListDiscussionParticipantsController::class
-        )
-        ->get(
-            '/resofire/participants/recalculate',
-            'resofire.participants.recalculate.get',
-            RecalculateParticipantsController::class
-        )
-        ->post(
-            '/resofire/participants/recalculate',
-            'resofire.participants.recalculate',
-            RecalculateParticipantsController::class
-        ),
-
-    // -------------------------------------------------------------------------
-    // Discussion list: participantPreview relationship and eager loading.
-    //
-    // Replaces the 1.x ApiSerializer + ApiController extenders.
-    //
-    // The Eloquent belongsToMany definition on Discussion is unchanged (still
-    // registered via Extend\Model below). This block wires the relationship
-    // into the JSON:API layer so it is serialized and included by default on
-    // the discussion list endpoint.
-    // -------------------------------------------------------------------------
-    (new Extend\Model(\Flarum\Discussion\Discussion::class))
-        ->relationship('participantPreview', function (\Flarum\Discussion\Discussion $discussion) {
+    // Register the participantPreview Eloquent relationship on the Discussion model.
+    // This is identical to 1.x — Extend\Model is unchanged in 2.x.
+    (new Extend\Model(Discussion::class))
+        ->relationship('participantPreview', function (Discussion $discussion) {
             return $discussion
                 ->belongsToMany(
-                    \Flarum\User\User::class,
+                    User::class,
                     'discussion_participant_previews',
                     'discussion_id',
                     'user_id'
@@ -87,16 +46,46 @@ return [
                 ->orderBy('discussion_participant_previews.sort_order');
         }),
 
-    (new Extend\ApiResource(DiscussionResource::class))
+    // Flarum 2.x: Extend\ApiController and Extend\ApiSerializer are REMOVED.
+    // Relationships and includes are now declared on the resource via Extend\ApiResource.
+    (new Extend\ApiResource(Resource\DiscussionResource::class))
+        // Add the participantPreview ToMany relationship field so it can be included.
+        // The null-user filter (previously in prepareDataForSerialization) is handled
+        // by the ->scope() callback on the relationship below.
         ->fields(fn () => [
             Schema\Relationship\ToMany::make('participantPreview')
                 ->type('users')
-                ->includable(),
+                ->includable()
+                // Filter null users so a deleted user's missing row does not
+                // crash the JS store — mirrors the 1.x prepareDataForSerialization guard.
+                ->scope(function (\Illuminate\Database\Eloquent\Relations\BelongsToMany $query) {
+                    $query->whereNotNull('users.id');
+                }),
         ])
-        ->endpoint(
-            Endpoint\Index::class,
-            fn (Endpoint\Index $endpoint): Endpoint\Endpoint => $endpoint
-                ->addDefaultInclude(['participantPreview'])
-                ->eagerLoad(['participantPreview'])
+        // Add firstPost and participantPreview to the Index endpoint's default includes
+        // and eager loads. firstPost is already a default include on Show/Create but
+        // NOT on Index in core 2.x — it must be added explicitly.
+        ->endpoint(Endpoint\Index::class, function (Endpoint\Index $endpoint): Endpoint\Endpoint {
+            return $endpoint
+                ->addDefaultInclude(['firstPost', 'participantPreview'])
+                ->eagerLoad(['participantPreview']);
+        }),
+
+    (new Extend\Routes('api'))
+        ->get(
+            '/resofire/blog-cards/recalculate',
+            'resofire.blog-cards.participants.recalculate.get',
+            RecalculateParticipantsController::class
+        )
+        ->post(
+            '/resofire/blog-cards/recalculate',
+            'resofire.blog-cards.participants.recalculate',
+            RecalculateParticipantsController::class
         ),
+
+    (new Extend\Console())
+        ->command(PopulateParticipantPreviews::class),
+
+    (new Extend\Event())
+        ->subscribe(UpdateParticipantPreview::class),
 ];

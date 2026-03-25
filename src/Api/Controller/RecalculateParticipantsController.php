@@ -1,8 +1,8 @@
 <?php
 
-namespace Resofire\DiscussionParticipants\Api\Controller;
+namespace Resofire\BlogCards\Api\Controller;
 
-use Resofire\DiscussionParticipants\Listener\UpdateParticipantPreview;
+use Resofire\BlogCards\Listener\UpdateParticipantPreview;
 use Flarum\Http\RequestUtil;
 use Flarum\User\Exception\PermissionDeniedException;
 use Illuminate\Database\ConnectionInterface;

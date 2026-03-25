@@ -1,0 +1,129 @@
+/* Admin settings page styles for Blog Cards.
+ *
+ * Flarum 2.x: The old LESS @variable theming system (@control-bg, @body-bg,
+ * @primary-color, @border-radius, @shadow-color, @muted-color, @text-color)
+ * is replaced with CSS custom properties (var(--...)).
+ * forum.less already used var(--...) throughout; this file is updated to match.
+ */
+
+.BlogCardsSettings {
+  padding-top: 20px;
+
+  &--content {
+    background: var(--control-bg);
+    padding: 20px;
+    border-radius: var(--border-radius);
+    box-shadow: 0 2px 4px var(--shadow-color);
+
+    h3 {
+      color: var(--primary-color);
+      margin-bottom: 10px;
+    }
+
+    .Section {
+      background: var(--body-bg);
+      border-radius: var(--border-radius);
+      box-shadow: 0 1px 3px var(--shadow-color);
+      padding: 15px;
+      margin-top: 20px;
+      margin-bottom: 20px;
+    }
+
+    .Form {
+      .control {
+        background: var(--body-bg);
+        border: 1px solid var(--muted-color);
+        color: var(--body-color);
+        padding: 6px 12px;
+        border-radius: var(--border-radius);
+      }
+    }
+  }
+
+  .SelectTagsSettingComponent {
+    .TagsLabel {
+      white-space: wrap;
+    }
+  }
+}
+
+/* Default image upload stub */
+
+.imgStub {
+  background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAZAAAADhCAYAAADmtuMcAAAACXBIWXMAAAsSAAALEgHS3X78AAAIJElEQVR4nO3d229U1xXA4UXGMxjfMcbYBhsCOOaSconUJoQCSYpAadRIvbz1v+xjH9uHRFEa2qilpUppCTeFmzAUx8iE6UPSlLZJCCvbPj5zvs+aFyOZLW2Yn9c+Z2Y2LD542A0AeEbPVb0AAOpJQABIERAAUgQEgBQBASBFQABIERAAUgQEgBQBASBFQABIERAAUgQEgBQBASBFQABIERAAUgQEgBQBASBFQABIERAAUgQEgBQBASBFQABIERAAUgQEgBQBASBFQABIERAAUgQEgBQBASBFQABIERAAUgQEgBQBASBFQABIERAAUgQEgBQBASBFQABIERAAUgQEgBQBASBFQABIERAAUgQEgBQBASBFQABIERAAUgQEgBR9VS+A3rG0vBJXPrlb9TJ4ik37OzG7bUfVy6AHBN9v0dPTVS+DpygtlasIuFaQKuFAAA==);
+  height: 225px;
+  width: 400px;
+  background-repeat: no-repeat;
+  background-size: cover;
+  margin-bottom: 10px;
+}
+
+.DC-DefaultImageSettings {
+  margin-bottom: 10px;
+}
+
+.DC-UserUploadedImage {
+  width: 400px;
+  height: 14rem;
+  margin-bottom: 1rem;
+  object-fit: cover;
+}
+
+.DC-UploadImageBtn {
+  margin-bottom: 10px;
+}
+
+.DC-DefaultImageSettings > div > p:first-child:nth-last-child(n+2) {
+  display: none;
+}
+
+.DC-DefaultImageSettings h4 {
+  font-size: 14px;
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+/* Tag Settings Modal */
+.DC-Fieldset {
+  .Button-icon {
+    display: inline;
+  }
+}
+
+.DC-ActivationBtn {
+  margin-bottom: 10px;
+  padding-left: 20px;
+  padding-right: 20px;
+}
+
+.activated {
+  background: #00977e !important;
+  color: #fff;
+}
+
+.activated:hover {
+  background: #008e97 !important;
+}
+
+.DC-Hidden {
+  display: none;
+}
+
+.DC-TagDefaultImageSettings h4 {
+  margin: 3px 0;
+}
+
+.DC-UploadTagImageBtn {
+  background: #fff;
+  margin-bottom: 15px;
+}
+
+.DC-Number {
+  width: 100px;
+}
+
+// Fix TagSelectionModal dropdown list alignment.
+.TagSelectionModal .Modal-footer {
+  display: block !important;
+  text-align: left !important;
+}

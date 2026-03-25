@@ -1,6 +1,6 @@
 <?php
 
-namespace Resofire\DiscussionParticipants\Dto;
+namespace Resofire\BlogCards\Dto;
 
 /**
  * Lightweight data transfer object representing one participant.

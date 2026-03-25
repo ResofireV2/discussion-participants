@@ -1,8 +1,8 @@
 <?php
 
-namespace Resofire\DiscussionParticipants\Console;
+namespace Resofire\BlogCards\Console;
 
-use Resofire\DiscussionParticipants\Listener\UpdateParticipantPreview;
+use Resofire\BlogCards\Listener\UpdateParticipantPreview;
 use Flarum\Discussion\Discussion;
 use Illuminate\Console\Command;
 

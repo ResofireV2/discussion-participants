@@ -1,6 +1,6 @@
 <?php
 
-namespace Resofire\DiscussionParticipants\Listener;
+namespace Resofire\BlogCards\Listener;
 
 use Flarum\Post\Event\Deleted;
 use Flarum\Post\Event\Hidden;
@@ -202,20 +202,6 @@ class UpdateParticipantPreview
 
         // Recompute participant_count using Flarum's own inclusive formula: all
         // distinct users who have a visible comment post in this discussion,
-        // including the OP. This matches exactly what DiscussionMetadataUpdater
-        // stores on live post events via Discussion::refreshParticipantCount().
-        // We must write this during recalculation because old discussions may
-        // have our previous extension's value (repliers only, OP excluded) still
-        // stored, which would make the JS overflow formula produce wrong results.
-        $participantCount = (int) $this->db->table('posts')
-            ->where('discussion_id', $discussionId)
-            ->where('type', 'comment')
-            ->where('is_private', false)
-            ->whereNull('hidden_at')
-            ->whereNotNull('user_id')
-            ->distinct()
-            ->count('user_id');
-
         // First MAX_PREVIEW repliers ordered by their earliest post.
         // The OP is excluded inline by joining discussions and filtering out
         // posts where user_id = discussions.user_id — no separate OP lookup needed.
@@ -233,7 +219,7 @@ class UpdateParticipantPreview
             ->limit(self::MAX_PREVIEW)
             ->get();
 
-        $this->db->transaction(function () use ($discussionId, $participants, $participantCount) {
+        $this->db->transaction(function () use ($discussionId, $participants) {
             $this->db->table('discussion_participant_previews')
                 ->where('discussion_id', $discussionId)
                 ->delete();
@@ -250,13 +236,6 @@ class UpdateParticipantPreview
                 $this->db->table('discussion_participant_previews')->insert($rows);
             }
 
-            // Sync participant_count to Flarum's inclusive formula (all distinct
-            // posters including OP, visible comments only). This corrects any
-            // stale values left by our previous extension version.
-            // On live post events Flarum core keeps this up to date itself.
-            $this->db->table('discussions')
-                ->where('id', $discussionId)
-                ->update(['participant_count' => $participantCount]);
         });
     }
 }

@@ -1,0 +1,13 @@
+{
+  "private": true,
+  "name": "@resofire/blog-cards",
+  "devDependencies": {
+    "flarum-webpack-config": "^3.0.0",
+    "webpack": "^5.104.1",
+    "webpack-cli": "^4.9.1"
+  },
+  "scripts": {
+    "dev": "webpack --mode development --watch",
+    "build": "webpack --mode production"
+  }
+}
