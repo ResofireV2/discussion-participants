@@ -3,7 +3,7 @@
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Database\Schema\Builder;
 
-// Adds a participant_count column to the discussions table.
+// participant_count on the discussions table.
 //
 // This stores the total number of distinct users who have posted a visible
 // comment in each discussion (excluding the OP). It is kept in sync by
@@ -13,6 +13,13 @@ use Illuminate\Database\Schema\Builder;
 // Storing the count on the discussion row means the discussion list page never
 // needs a COUNT(DISTINCT user_id) subquery — it reads a single integer column
 // that is already there.
+//
+// NOTE: participant_count is owned by Flarum core — it has been present since
+// core's own 2015_02_24_000000_create_discussions_table migration and is read
+// by core's DiscussionPolicy for rename-permission checks. The up() function is
+// a guarded no-op on any standard Flarum install because the column already
+// exists. The down() function must never drop it — doing so would silently
+// break core functionality when this extension is uninstalled.
 
 return [
     'up' => function (Builder $schema) {
@@ -26,8 +33,7 @@ return [
     },
 
     'down' => function (Builder $schema) {
-        $schema->table('discussions', function (Blueprint $table) {
-            $table->dropColumn('participant_count');
-        });
+        // participant_count is owned by Flarum core. We do not drop it on
+        // uninstall — doing so would break core's DiscussionPolicy checks.
     },
 ];
