@@ -1,25 +1,25 @@
 {
-    "name": "resofire/discussion-participants",
-    "description": "Shows avatars of users who have participated in a discussion.",
-    "type": "flarum-extension",
-    "license": "MIT",
-    "require": {
-        "php": "^8.3",
-        "flarum/core": "^2.0"
-    },
-    "autoload": {
-        "psr-4": {
-            "Resofire\\DiscussionParticipants\\": "src/"
-        }
-    },
-    "extra": {
-        "flarum-extension": {
-            "title": "Discussion Participants",
-            "icon": {
-                "name": "fas fa-users",
-                "backgroundColor": "#3dd6c8",
-                "color": "#fff"
-            }
-        }
+  "name": "resofire/discussion-participants",
+  "description": "Shows avatars of users who have participated in a discussion.",
+  "type": "flarum-extension",
+  "license": "MIT",
+  "require": {
+    "php": "^8.3",
+    "flarum/core": "^2.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "Resofire\\DiscussionParticipants\\": "src/"
     }
+  },
+  "extra": {
+    "flarum-extension": {
+      "title": "Discussion Participants",
+      "icon": {
+        "name": "fas fa-users",
+        "backgroundColor": "#69c6b9",
+        "color": "#1a2744"
+      }
+    }
+  }
 }
